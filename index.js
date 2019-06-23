@@ -1,12 +1,17 @@
+require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const morgan = require('morgan');
 const cors = require('cors');
 const app = express();
 
+const Person = require('./models/person');
+
+// MIDDLEWARE
+
 app.use(express.static('build'));
-app.use(cors());
 app.use(bodyParser.json());
+app.use(cors());
 
 morgan.token('body', req => {
   if (req.method === 'POST') {
@@ -17,91 +22,117 @@ const morganOutput =
   ':method :url :status :res[content-length] - :response-time ms :body';
 app.use(morgan(morganOutput));
 
-let persons = [
-  {
-    name: 'Bruce Willis',
-    number: '555-0418',
-    id: 1,
-  },
-  {
-    name: 'Jack Nicholson',
-    number: '555-9875',
-    id: 2,
-  },
-  {
-    name: 'Keanu Reeves',
-    number: '555-2568',
-    id: 3,
-  },
-  {
-    name: 'James Bond',
-    number: '007-5628',
-    id: 4,
-  },
-];
+// ROUTES
 
-app.get('/info', (req, res) => {
-  const info = `
-    <p>Phonebook has info for ${persons.length} people</p>
+app.get('/info', async (req, res, next) => {
+  try {
+    const people = await Person.find({});
+    const info = `
+    <p>Phonebook has info for ${people.length} people</p>
     <p>${new Date()}</p>
-  `;
-
-  res.send(info);
+    `;
+    res.send(info);
+  } catch (e) {
+    next(e);
+  }
 });
 
-app.get('/api/persons', (req, res) => {
-  res.json(persons);
+app.get('/api/people', async (req, res, next) => {
+  try {
+    const people = await Person.find({});
+    res.json(people.map(p => p.toJSON()));
+  } catch (e) {
+    next(e);
+  }
 });
 
-app.get('/api/persons/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const person = persons.find(p => p.id === id);
-
-  person ? res.json(person) : res.status(404).end();
+app.get('/api/people/:id', async (req, res, next) => {
+  try {
+    const person = await Person.findById(req.params.id);
+    if (person) {
+      res.json(person.toJSON());
+    } else {
+      res.status(404).end();
+    }
+  } catch (e) {
+    next(e);
+  }
 });
 
-app.post('/api/persons', (req, res) => {
+app.post('/api/people', async (req, res) => {
   const { name, number } = req.body;
 
   // validation
   if (!name) {
     return res.status(400).json({
-      error: 'please provide name',
+      error: 'Please provide name',
     });
   }
   if (!number) {
     return res.status(400).json({
-      error: 'please provide number',
-    });
-  }
-  const existing = persons.find(p => p.name === name);
-  if (existing) {
-    return res.status(400).json({
-      error: 'name must be unique',
+      error: 'Please provide number',
     });
   }
 
-  const person = {
-    name,
-    number,
-    id: Math.floor(Math.random() * 10000),
-  };
+  // // duplicate validation - not required as of exercise 3.13
+  // const people = await Person.find({});
+  // const existing = people.find(p => p.name === name);
+  // if (existing) {
+  //   return res.status(400).json({
+  //     error: 'name must be unique',
+  //   });
+  // }
 
-  persons = [...persons, person];
-  res.json(person);
+  const person = new Person({ name, number });
+  try {
+    const savedPerson = await person.save();
+    res.json(savedPerson.toJSON());
+  } catch (e) {
+    next(e);
+  }
 });
 
-app.delete('/api/persons/:id', (req, res) => {
-  const id = Number(req.params.id);
+app.put('/api/people/:id', async (req, res, next) => {
+  const { name, number } = req.body;
+  const person = { name, number };
+  const id = req.params.id;
 
-  const exists = persons.find(p => p.id === id);
-  if (!exists) return res.status(404).end();
-
-  persons = persons.filter(p => p.id !== id);
-  res.status(204).end();
+  try {
+    const updatedPerson = await Person.findByIdAndUpdate(id, person, {
+      new: true,
+    });
+    if (updatedPerson) {
+      res.json(updatedPerson.toJSON());
+    } else {
+      res.status(404).end();
+    }
+  } catch (e) {
+    next(e);
+  }
 });
 
-const PORT = process.env.PORT || 3001;
+app.delete('/api/people/:id', async (req, res, next) => {
+  try {
+    await Person.findByIdAndRemove(req.params.id);
+    res.status(204).end();
+  } catch (e) {
+    next(e);
+  }
+});
+
+// error handlers
+const errorHandler = (err, req, res, next) => {
+  console.log('error message:', err.message);
+
+  if (err.name === 'CastError' && err.kind == 'ObjectId') {
+    return res.status(400).json({ error: 'malformed id' });
+  }
+
+  next(err);
+};
+app.use(errorHandler);
+
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
 });
