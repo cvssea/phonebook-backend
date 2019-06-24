@@ -59,34 +59,14 @@ app.get('/api/people/:id', async (req, res, next) => {
   }
 });
 
-app.post('/api/people', async (req, res) => {
+app.post('/api/people', async (req, res, next) => {
   const { name, number } = req.body;
-
-  // validation
-  if (!name) {
-    return res.status(400).json({
-      error: 'Please provide name',
-    });
-  }
-  if (!number) {
-    return res.status(400).json({
-      error: 'Please provide number',
-    });
-  }
-
-  // // duplicate validation - not required as of exercise 3.13
-  // const people = await Person.find({});
-  // const existing = people.find(p => p.name === name);
-  // if (existing) {
-  //   return res.status(400).json({
-  //     error: 'name must be unique',
-  //   });
-  // }
-
   const person = new Person({ name, number });
+
   try {
     const savedPerson = await person.save();
-    res.json(savedPerson.toJSON());
+    const jPerson = await savedPerson.toJSON();
+    res.json(jPerson);
   } catch (e) {
     next(e);
   }
@@ -100,11 +80,13 @@ app.put('/api/people/:id', async (req, res, next) => {
   try {
     const updatedPerson = await Person.findByIdAndUpdate(id, person, {
       new: true,
+      runValidators: true,
+      context: 'query',
     });
     if (updatedPerson) {
       res.json(updatedPerson.toJSON());
     } else {
-      res.status(404).end();
+      res.status(400).end();
     }
   } catch (e) {
     next(e);
@@ -113,8 +95,13 @@ app.put('/api/people/:id', async (req, res, next) => {
 
 app.delete('/api/people/:id', async (req, res, next) => {
   try {
-    await Person.findByIdAndRemove(req.params.id);
-    res.status(204).end();
+    const personToDelete = await Person.findByIdAndRemove(req.params.id);
+    if (personToDelete) {
+      res.status(204).end();
+    } else {
+      res.status(400).end();
+      throw new Error('Already deleted from the server');
+    }
   } catch (e) {
     next(e);
   }
@@ -124,8 +111,10 @@ app.delete('/api/people/:id', async (req, res, next) => {
 const errorHandler = (err, req, res, next) => {
   console.log('error message:', err.message);
 
-  if (err.name === 'CastError' && err.kind == 'ObjectId') {
+  if (err.name === 'CastError' && err.kind === 'ObjectId') {
     return res.status(400).json({ error: 'malformed id' });
+  } else if (err.name === 'ValidationError') {
+    return res.status(400).json({ error: err.message });
   }
 
   next(err);
