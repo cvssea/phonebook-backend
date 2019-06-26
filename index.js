@@ -1,10 +1,11 @@
+/* eslint-disable consistent-return */
 require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const morgan = require('morgan');
 const cors = require('cors');
-const app = express();
 
+const app = express();
 const Person = require('./models/person');
 
 // MIDDLEWARE
@@ -13,13 +14,12 @@ app.use(express.static('build'));
 app.use(bodyParser.json());
 app.use(cors());
 
-morgan.token('body', req => {
+morgan.token('body', (req) => {
   if (req.method === 'POST') {
     return JSON.stringify(req.body);
   }
 });
-const morganOutput =
-  ':method :url :status :res[content-length] - :response-time ms :body';
+const morganOutput = ':method :url :status :res[content-length] - :response-time ms :body';
 app.use(morgan(morganOutput));
 
 // ROUTES
@@ -75,7 +75,7 @@ app.post('/api/people', async (req, res, next) => {
 app.put('/api/people/:id', async (req, res, next) => {
   const { name, number } = req.body;
   const person = { name, number };
-  const id = req.params.id;
+  const { id } = req.params;
 
   try {
     const updatedPerson = await Person.findByIdAndUpdate(id, person, {
@@ -109,19 +109,21 @@ app.delete('/api/people/:id', async (req, res, next) => {
 
 // error handlers
 const errorHandler = (err, req, res, next) => {
-  console.log('error message:', err.message);
-
   if (err.name === 'CastError' && err.kind === 'ObjectId') {
     return res.status(400).json({ error: 'malformed id' });
-  } else if (err.name === 'ValidationError') {
+  }
+  if (err.name === 'ValidationError') {
     return res.status(400).json({ error: err.message });
   }
+
+  console.log('error message:', err.message);
 
   next(err);
 };
 app.use(errorHandler);
 
-const PORT = process.env.PORT;
+// eslint-disable-next-line no-undef
+const { PORT } = process.env;
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
 });

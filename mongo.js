@@ -1,3 +1,4 @@
+/* eslint-disable no-case-declarations */
 const mongoose = require('mongoose');
 
 const handleArgErr = () => {
@@ -7,7 +8,7 @@ const handleArgErr = () => {
     node mongo.js <password> - Get all entries
     node mongo.js <password> <name> <number> - Add new entry
     node mongo.js <password> id=<id> - Delete entry by id
-    `
+    `,
   );
   process.exit(1);
 };
@@ -17,8 +18,9 @@ if (process.argv.length < 3) {
 }
 
 const password = process.argv[2];
+const cluster = process.env.CLUSTER;
 
-const url = `mongodb+srv://cvsea:${password}@cvcluster-1hsxa.mongodb.net/phonebook-app?retryWrites=true&w=majority`;
+const url = `mongodb+srv://cvsea:${password}@${cluster}.mongodb.net/phonebook-app?retryWrites=true&w=majority`;
 mongoose.connect(url, { useNewUrlParser: true });
 
 const personSchema = new mongoose.Schema({
@@ -36,7 +38,7 @@ switch (process.argv.length) {
       number: process.argv[4],
     });
 
-    person.save().then(result => {
+    person.save().then((result) => {
       const { name, number } = result;
 
       console.log(`Added ${name} number ${number} to phonebook!`);
@@ -45,10 +47,10 @@ switch (process.argv.length) {
     break;
   // get all people
   case 3:
-    Person.find({}).then(result => {
+    Person.find({}).then((result) => {
       console.log('Phonebook:');
-      result.forEach(person => {
-        const { name, number } = person;
+      result.forEach((p) => {
+        const { name, number } = p;
         console.log(`${name} ${number}`);
       });
       mongoose.connection.close();
@@ -59,14 +61,14 @@ switch (process.argv.length) {
     if (process.argv[3].includes('id=')) {
       const id = process.argv[3].replace('id=', '');
       Person.deleteOne({ _id: id })
-        .then(result => {
+        .then((result) => {
           if (!result.deletedCount) {
             throw { message: 'no such id in database' };
           }
           console.log(`Deleted entry with id ${id} from phonebook`);
           mongoose.connection.close();
         })
-        .catch(e => {
+        .catch((e) => {
           console.log('Error:', e.message);
           mongoose.connection.close();
         });
